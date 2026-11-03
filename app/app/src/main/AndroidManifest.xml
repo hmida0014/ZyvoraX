@@ -1,1 +1,176 @@
+package com.zyvora.x
+
+import android.net.Uri
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.media3.common.MediaItem
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.PlayerView
+
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContent { ZyvoraApp() }
+    }
+}
+
+@Composable
+private fun ZyvoraApp() {
+    val context = LocalContext.current
+    var showUrlDialog by remember { mutableStateOf(false) }
+    var streamUrl by remember { mutableStateOf("") }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    val player = remember {
+        ExoPlayer.Builder(context).build()
+    }
+
+    DisposableEffect(player) {
+        onDispose { player.release() }
+    }
+
+    MaterialTheme {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0xFF080B12))
+                .padding(28.dp)
+        ) {
+            Column(
+                modifier = Modifier.width(220.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text("ZYVORA X", color = Color(0xFF65B8FF), style = MaterialTheme.typography.headlineSmall)
+                Text("SMART ENTERTAINMENT", color = Color.LightGray)
+
+                Spacer(Modifier.height(18.dp))
+
+                listOf("Home", "Live TV", "Movies", "Series", "Favorites", "Settings")
+                    .forEach { item ->
+                        Text(
+                            text = item,
+                            color = Color.White,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color(0xFF151B27), RoundedCornerShape(10.dp))
+                                .padding(horizontal = 16.dp, vertical = 14.dp)
+                                .focusable()
+                        )
+                    }
+
+                Spacer(Modifier.height(8.dp))
+
+                Button(onClick = { showUrlDialog = true }) {
+                    Text("Open stream URL")
+                }
+            }
+
+            Spacer(Modifier.width(24.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "Your entertainment, your way.",
+                    color = Color.White,
+                    style = MaterialTheme.typography.headlineMedium
+                )
+                Text(
+                    "Add a stream you’re authorized to watch.",
+                    color = Color.LightGray,
+                    modifier = Modifier.padding(top = 6.dp, bottom = 18.dp)
+                )
+
+                AndroidView(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .background(Color.Black, RoundedCornerShape(12.dp)),
+                    factory = { viewContext ->
+                        PlayerView(viewContext).apply {
+                            this.player = player
+                            useController = true
+                        }
+                    },
+                    update = { it.player = player }
+                )
+
+                errorMessage?.let {
+                    Text(it, color = Color(0xFFFF8A80), modifier = Modifier.padding(top = 10.dp))
+                }
+            }
+        }
+    }
+
+    if (showUrlDialog) {
+        AlertDialog(
+            onDismissRequest = { showUrlDialog = false },
+            title = { Text("Open stream") },
+            text = {
+                Column {
+                    Text("Enter an authorized HLS, DASH, or supported media URL.")
+                    Spacer(Modifier.height(12.dp))
+                    BasicTextField(
+                        value = streamUrl,
+                        onValueChange = { streamUrl = it },
+                        singleLine = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFFECEFF4), RoundedCornerShape(8.dp))
+                            .padding(12.dp)
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val uri = runCatching { Uri.parse(streamUrl.trim()) }.getOrNull()
+                    if (uri != null && uri.scheme in setOf("https", "http")) {
+                        errorMessage = null
+                        player.setMediaItem(MediaItem.fromUri(uri))
+                        player.prepare()
+                        player.playWhenReady = true
+                        showUrlDialog = false
+                    } else {
+                        errorMessage = "Enter a valid HTTP or HTTPS stream URL."
+                    }
+                }) {
+                    Text("Play")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showUrlDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+}
 
